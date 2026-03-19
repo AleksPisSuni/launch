@@ -54,6 +54,9 @@ settings.json
 
 dist/
 
+# ── LaunchpadMapper (not published) ──────────────────────────────────────────
+app_win/LaunchpadMapper/
+
 # ── Python (old Mapper) ──────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
