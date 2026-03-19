@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    name: Build (win-x64)
+    name: Build & package (win-x64)
     runs-on: windows-latest
 
     steps:
@@ -26,7 +26,7 @@ jobs:
         working-directory: app_win/LaunchpadX
         run: dotnet restore
 
-      - name: Build (Debug)
+      - name: Build (Debug check)
         working-directory: app_win/LaunchpadX
         run: dotnet build -c Debug --no-restore
 
@@ -39,11 +39,29 @@ jobs:
           -p:IncludeNativeLibrariesForSelfExtract=true
           -o publish/
 
-      - name: Upload build artifact
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        working-directory: app_win/LaunchpadX
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          if (-not $version -or $version -eq '${{ github.ref_name }}') { $version = '1.0.0' }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss /DMyAppVersion=$version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload portable exe
         uses: actions/upload-artifact@v4
         with:
-          name: LaunchpadX-win-x64
+          name: LaunchpadX-portable
           path: app_win/LaunchpadX/publish/LaunchpadX.exe
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: LaunchpadX-installer
+          path: app_win/LaunchpadX/installer/LaunchpadX-Setup-*.exe
 
   release:
     name: Create GitHub Release
@@ -52,14 +70,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download artifact
+      - name: Download portable exe
         uses: actions/download-artifact@v4
         with:
-          name: LaunchpadX-win-x64
+          name: LaunchpadX-portable
+          path: release/
+
+      - name: Download installer
+        uses: actions/download-artifact@v4
+        with:
+          name: LaunchpadX-installer
           path: release/
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: release/LaunchpadX.exe
+          files: |
+            release/LaunchpadX-Setup-*.exe
+            release/LaunchpadX.exe
           generate_release_notes: true
+          body: |
+            ## Installation
+
+            | File | Description |
+            |---|---|
+            | `LaunchpadX-Setup-*.exe` | **Recommended** — installs with Start Menu shortcut and uninstaller |
+            | `LaunchpadX.exe` | Portable — run from anywhere, no install needed |
+
+            **Requirements:** Windows 10/11 x64, Novation Launchpad X connected via USB.
