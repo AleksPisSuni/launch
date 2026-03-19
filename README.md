@@ -70,4 +70,6 @@ Settings and mappings are saved as `settings.json` / `mappings.json` next to the
 
 ## License
 
-MIT
+Copyright (c) 2026 Aleksis Vorobejs. All rights reserved.
+Source available for personal use only — redistribution is not permitted.
+See [LICENSE](LICENSE) for full terms.
