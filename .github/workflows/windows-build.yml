@@ -1,0 +1,65 @@
+name: Build & Release LaunchpadX
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:   [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (win-x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        working-directory: app_win/LaunchpadX
+        run: dotnet restore
+
+      - name: Build (Debug)
+        working-directory: app_win/LaunchpadX
+        run: dotnet build -c Debug --no-restore
+
+      - name: Publish self-contained release
+        working-directory: app_win/LaunchpadX
+        run: >
+          dotnet publish -c Release -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish/
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LaunchpadX-win-x64
+          path: app_win/LaunchpadX/publish/LaunchpadX.exe
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: LaunchpadX-win-x64
+          path: release/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/LaunchpadX.exe
+          generate_release_notes: true

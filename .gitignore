@@ -1,0 +1,62 @@
+# ── Build outputs ────────────────────────────────────────────────────────────
+bin/
+obj/
+out/
+dist/
+publish/
+
+# ── Visual Studio / Rider ────────────────────────────────────────────────────
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+.idea/
+*.DotSettings.user
+
+# ── NuGet ────────────────────────────────────────────────────────────────────
+*.nupkg
+*.snupkg
+packages/
+!**/packages/build/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ── .NET ─────────────────────────────────────────────────────────────────────
+*.dll
+*.exe
+!**/samples/**/*.exe
+*.pdb
+*.cache
+*.ilk
+*.exp
+*.lib
+*.sbr
+*.tlb
+*.tlh
+*.tli
+
+# ── Rider temp ───────────────────────────────────────────────────────────────
+_ReSharper*/
+*.ReSharper
+
+# ── OS noise ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── User-specific runtime data ───────────────────────────────────────────────
+mappings.json
+settings.json
+*.log
+
+dist/
+
+# ── Python (old Mapper) ──────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.env

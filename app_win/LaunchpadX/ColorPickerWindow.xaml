@@ -1,0 +1,130 @@
+<Window x:Class="LaunchpadX.ColorPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Pick Color" Width="320" Height="308"
+        Background="#111827" Foreground="#E5E7EB"
+        ResizeMode="NoResize" WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+
+    <Window.Resources>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#1F2937"/>
+            <Setter Property="Foreground" Value="#E5E7EB"/>
+            <Setter Property="BorderBrush" Value="#374151"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="CaretBrush" Value="#E5E7EB"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="#E5E7EB"/>
+            <Setter Property="Background" Value="#1F2937"/>
+            <Setter Property="BorderBrush" Value="#374151"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#374151"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#2563EB"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <StackPanel Margin="14">
+
+        <!-- SV picker -->
+        <Canvas x:Name="SvCanvas" Width="288" Height="180"
+                ClipToBounds="True" Cursor="Crosshair"
+                MouseLeftButtonDown="SvCanvas_MouseDown"
+                MouseLeftButtonUp="SvCanvas_MouseUp"
+                MouseMove="SvCanvas_MouseMove">
+            <!-- Base: white → hue (fill set in code-behind) -->
+            <Rectangle x:Name="SvBase" Width="288" Height="180"/>
+            <!-- Overlay: transparent → black (top to bottom) -->
+            <Rectangle Width="288" Height="180" IsHitTestVisible="False">
+                <Rectangle.Fill>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="Transparent" Offset="0"/>
+                        <GradientStop Color="Black" Offset="1"/>
+                    </LinearGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+            <!-- Cursor ring (dark outer, white inner) -->
+            <Ellipse x:Name="SvCursorOuter" Width="14" Height="14"
+                     Stroke="#00000088" StrokeThickness="3" Fill="Transparent"
+                     IsHitTestVisible="False"/>
+            <Ellipse x:Name="SvCursor" Width="14" Height="14"
+                     Stroke="White" StrokeThickness="2" Fill="Transparent"
+                     IsHitTestVisible="False"/>
+        </Canvas>
+
+        <!-- Hue strip -->
+        <Canvas x:Name="HueCanvas" Width="288" Height="16" Margin="0,8,0,0"
+                ClipToBounds="True" Cursor="Hand"
+                MouseLeftButtonDown="HueCanvas_MouseDown"
+                MouseLeftButtonUp="HueCanvas_MouseUp"
+                MouseMove="HueCanvas_MouseMove">
+            <Rectangle Width="288" Height="16" RadiusX="3" RadiusY="3">
+                <Rectangle.Fill>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#FF0000" Offset="0"/>
+                        <GradientStop Color="#FFFF00" Offset="0.167"/>
+                        <GradientStop Color="#00FF00" Offset="0.333"/>
+                        <GradientStop Color="#00FFFF" Offset="0.5"/>
+                        <GradientStop Color="#0000FF" Offset="0.667"/>
+                        <GradientStop Color="#FF00FF" Offset="0.833"/>
+                        <GradientStop Color="#FF0000" Offset="1"/>
+                    </LinearGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+            <!-- Hue cursor tick -->
+            <Rectangle x:Name="HueCursor" Width="4" Height="16"
+                       RadiusX="2" RadiusY="2"
+                       Fill="White" Stroke="#00000088" StrokeThickness="1"
+                       IsHitTestVisible="False"/>
+        </Canvas>
+
+        <!-- Hex input + preview + buttons -->
+        <Grid Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="44"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBox x:Name="TxtHex" Grid.Column="0"
+                     TextChanged="TxtHex_TextChanged"/>
+
+            <Border Grid.Column="2" x:Name="PreviewBox" CornerRadius="4">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" BlurRadius="6" ShadowDepth="0" Opacity="0.5"/>
+                </Border.Effect>
+            </Border>
+
+            <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Cancel" Click="BtnCancel_Click" Margin="0,0,6,0"/>
+                <Button Content="OK"     Click="BtnOk_Click"
+                        Background="#1D4ED8" BorderBrush="#1E40AF"/>
+            </StackPanel>
+        </Grid>
+
+    </StackPanel>
+</Window>

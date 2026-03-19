@@ -1,0 +1,23 @@
+<Window x:Class="LaunchpadMapper.LiveMidiMonitorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Live MIDI Monitor" Height="420" Width="640" WindowStartupLocation="CenterOwner">
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,8">
+            <TextBlock Text="Live MIDI Monitor" FontWeight="Bold" FontSize="14" VerticalAlignment="Center"/>
+            <Button x:Name="BtnClear" Content="Clear" Width="80" Margin="12,0,0,0" Click="BtnClear_Click"/>
+            <Button x:Name="BtnCopy" Content="Copy" Width="80" Margin="8,0,0,0" Click="BtnCopy_Click"/>
+            <Button x:Name="BtnClose" Content="Close" Width="80" Margin="8,0,0,0" Click="BtnClose_Click"/>
+        </StackPanel>
+
+        <TextBox x:Name="TxtMonitor" Grid.Row="1" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas"/>
+
+        <TextBlock x:Name="TxtDecoded" Grid.Row="2" Margin="0,8,0,0" TextWrapping="Wrap"/>
+    </Grid>
+</Window>

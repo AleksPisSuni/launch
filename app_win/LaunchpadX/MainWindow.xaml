@@ -1,0 +1,219 @@
+<Window x:Class="LaunchpadX.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Launchpad X" Height="600" Width="740"
+        MinHeight="500" MinWidth="600"
+        Background="#111827" Foreground="#E5E7EB"
+        ResizeMode="CanResize">
+
+    <Window.Resources>
+        <Style TargetType="Button" x:Key="ToolBtn">
+            <Setter Property="Foreground" Value="#E5E7EB"/>
+            <Setter Property="Background" Value="#1F2937"/>
+            <Setter Property="BorderBrush" Value="#374151"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="18,7"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#374151"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#2563EB"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#E5E7EB"/>
+        </Style>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="#1F2937"/>
+            <Setter Property="Foreground" Value="#E5E7EB"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#2563EB"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1D4ED8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#1F2937"/>
+            <Setter Property="Foreground" Value="#E5E7EB"/>
+            <Setter Property="BorderBrush" Value="#374151"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton"
+                                          Background="{TemplateBinding Background}"
+                                          BorderBrush="{TemplateBinding BorderBrush}"
+                                          BorderThickness="{TemplateBinding BorderThickness}"
+                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                          Focusable="False" ClickMode="Press">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="4">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="24"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ContentPresenter Grid.Column="0"
+                                                                  Margin="{Binding Padding, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                                  VerticalAlignment="Center"/>
+                                                <Path Grid.Column="1" Data="M 0 0 L 4 4 L 8 0 Z"
+                                                      Fill="#9CA3AF" HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#374151"/>
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter Property="Background" Value="#374151"/>
+                                                <Setter Property="BorderBrush" Value="#4B5563"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="ContentSite"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center"/>
+                            <Popup x:Name="Popup" Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True" Focusable="False"
+                                   PopupAnimation="Slide">
+                                <Border Background="#1F2937" BorderBrush="#4B5563"
+                                        BorderThickness="1" CornerRadius="4"
+                                        MinWidth="{TemplateBinding ActualWidth}"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="#000000" BlurRadius="12"
+                                                          ShadowDepth="4" Opacity="0.6"/>
+                                    </Border.Effect>
+                                    <ScrollViewer SnapsToDevicePixels="True">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="16">
+
+        <!-- Top bar -->
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,14">
+            <Ellipse x:Name="StatusDot" Width="12" Height="12"
+                     Fill="#EF4444" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBlock x:Name="StatusLabel" Text="Disconnected"
+                       FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,20,0"/>
+            <Button x:Name="BtnConnect"    Content="Connect"    Width="100" Margin="0,0,8,0"
+                    Style="{StaticResource ToolBtn}" Click="BtnConnect_Click"/>
+            <Button x:Name="BtnDisconnect" Content="Disconnect" Width="100" IsEnabled="False"
+                    Style="{StaticResource ToolBtn}" Click="BtnDisconnect_Click"/>
+            <Button x:Name="BtnSettings" Content="⚙ Settings" Width="100" Margin="16,0,0,0"
+                    Style="{StaticResource ToolBtn}" Click="BtnSettings_Click"/>
+        </StackPanel>
+
+        <!-- Log on right -->
+        <DockPanel DockPanel.Dock="Right" Width="220" Margin="14,0,0,0">
+            <TextBlock DockPanel.Dock="Top" Text="Log" Foreground="#6B7280" FontSize="11" Margin="0,0,0,4"/>
+            <TextBox x:Name="LogBox"
+                     IsReadOnly="True"
+                     TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                     Background="#0B1220" Foreground="#9CA3AF"
+                     BorderBrush="#374151" BorderThickness="1"
+                     FontFamily="Consolas" FontSize="11"
+                     Padding="6"/>
+        </DockPanel>
+
+        <!-- Pad grid -->
+        <DockPanel>
+            <!-- Profile bar -->
+            <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="6"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="4"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="4"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Profile:" VerticalAlignment="Center"
+                           Foreground="#9CA3AF" FontSize="11" Margin="0,0,6,0"/>
+                <ComboBox x:Name="CmbProfile" Grid.Column="1"
+                          SelectionChanged="CmbProfile_SelectionChanged"
+                          Background="#1F2937" Foreground="#E5E7EB"
+                          BorderBrush="#374151" Padding="6,4"/>
+                <Button Grid.Column="3" x:Name="BtnAddProfile"    Content="+"
+                        Width="26" Height="26" Padding="0"
+                        Style="{StaticResource ToolBtn}" Click="BtnAddProfile_Click"
+                        ToolTip="New profile"/>
+                <Button Grid.Column="5" x:Name="BtnRenameProfile" Content="✎"
+                        Width="26" Height="26" Padding="0"
+                        Style="{StaticResource ToolBtn}" Click="BtnRenameProfile_Click"
+                        ToolTip="Rename profile"/>
+                <Button Grid.Column="7" x:Name="BtnDeleteProfile" Content="✕"
+                        Width="26" Height="26" Padding="0"
+                        Style="{StaticResource ToolBtn}" Click="BtnDeleteProfile_Click"
+                        ToolTip="Delete profile"/>
+                <TextBlock Grid.Column="8" Foreground="#6B7280" FontSize="10"
+                           VerticalAlignment="Center" Margin="12,0,0,0"
+                           Text="Double-click pad to configure · Drag to swap"/>
+            </Grid>
+
+            <!-- Grid filled by code-behind — stretches to fill available space -->
+            <Viewbox Stretch="Uniform">
+                <UniformGrid x:Name="PadGrid" Rows="9" Columns="9" Width="520" Height="520"/>
+            </Viewbox>
+        </DockPanel>
+
+    </DockPanel>
+</Window>

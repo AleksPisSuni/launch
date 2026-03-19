@@ -1,0 +1,38 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build solution (Release)",
+			"type": "shell",
+			"command": "dotnet build \"c:\\Users\\aleks\\Documents\\launch\\launch.sln\" -c Release",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build solution (Release)",
+			"type": "shell",
+			"command": "dotnet build \"c:\\Users\\aleks\\Documents\\launch\\launch.sln\" -c Release",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build solution (Release)",
+			"type": "shell",
+			"command": "dotnet build \"c:\\Users\\aleks\\Documents\\launch\\launch.sln\" -c Release",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		}
+	]
+}
