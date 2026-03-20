@@ -1,4 +1,4 @@
-# LaunchpadX
+# LaunchpadX Mapper
 
 A Windows desktop app that turns every pad on a **Novation Launchpad X** into a fully programmable key — hotkeys, macros, sounds, MIDI output, volume control, and more.
 
