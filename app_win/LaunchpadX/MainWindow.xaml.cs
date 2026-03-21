@@ -63,9 +63,12 @@ namespace LaunchpadX
         // ── YouTube progress bar (top row 91–98) + equalizer (main 8×8 grid) ──
         private CancellationTokenSource? _progressBarCts;
         private readonly object _progressBarLock = new();
-        private readonly double[] _eqHeights = new double[8];
-        private readonly double[] _eqPhases  = { 0.0, 0.9, 1.8, 2.7, 3.6, 4.5, 5.4, 0.45 };
-        private readonly Random   _eqRand    = new();
+        private readonly double[] _eqHeights   = new double[8];
+        private readonly double[] _eqTarget    = { 0.5, 0.7, 0.8, 0.75, 0.7, 0.65, 0.5, 0.4 };
+        private readonly int[]    _eqCountdown = { 1, 3, 5, 7, 2, 4, 6, 8 }; // stagger initial updates
+        private readonly Random   _eqRand      = new();
+        // Typical music-spectrum energy per column: higher in the mids, lower at the edges
+        private static readonly double[] EqBaseEnergy = { 0.72, 0.82, 0.88, 0.85, 0.80, 0.72, 0.55, 0.42 };
 
         // ── Drag-and-drop ─────────────────────────────────────────────────────
         private Point? _dragStart;
@@ -697,33 +700,39 @@ namespace LaunchpadX
             if (!_midi.IsConnected) return;
             try
             {
-                // Advance each column's phase independently and compute a smooth animated height
                 var pads = new List<(int, byte, byte, byte)>(64);
                 for (int col = 0; col < 8; col++)
                 {
-                    _eqPhases[col] += 0.18 + col * 0.03; // slightly different tempo per band
-                    double sine   = (Math.Sin(_eqPhases[col]) + 1.0) * 0.5;
-                    double target = Math.Clamp(sine + _eqRand.NextDouble() * 0.22 - 0.11, 0.05, 0.95);
+                    // Each column independently counts down to a new random target.
+                    // This ensures columns never synchronise — no rolling-wave effect.
+                    _eqCountdown[col]--;
+                    if (_eqCountdown[col] <= 0)
+                    {
+                        double energy = EqBaseEnergy[col];
+                        double newTarget = energy * (0.35 + _eqRand.NextDouble() * 0.80);
+                        // Occasional spike to the top (~5% chance)
+                        if (_eqRand.NextDouble() < 0.05)
+                            newTarget = 0.85 + _eqRand.NextDouble() * 0.15;
+                        _eqTarget[col]    = Math.Clamp(newTarget, 0.08, 1.0);
+                        _eqCountdown[col] = _eqRand.Next(2, 8); // hold 200–700 ms
+                    }
 
-                    // Fast attack, slower decay
-                    _eqHeights[col] = target > _eqHeights[col]
-                        ? Math.Min(_eqHeights[col] + 0.35, target)
-                        : Math.Max(_eqHeights[col] - 0.10, target);
+                    // Fast attack (~2 frames to reach target), slow decay (~7 frames)
+                    double gap = _eqTarget[col] - _eqHeights[col];
+                    _eqHeights[col] += gap > 0 ? gap * 0.50 : gap * 0.18;
 
                     for (int row = 0; row < 8; row++)
                     {
-                        int padNote = 11 + col + row * 10; // bottom row = row 0, top = row 7
+                        int note = 11 + col + row * 10; // row 0 = bottom (note 11+col)
                         if ((row + 0.5) / 8.0 <= _eqHeights[col])
                         {
-                            // VU-meter colours: green → amber → red (bottom to top)
                             byte r = row < 4 ? (byte)0   : row < 6 ? (byte)220 : (byte)210;
                             byte g = row < 4 ? (byte)190 : row < 6 ? (byte)140 : (byte)0;
-                            byte b = (byte)0;
-                            pads.Add((padNote, r, g, b));
+                            pads.Add((note, r, g, 0));
                         }
                         else
                         {
-                            pads.Add((padNote, 0, 0, 0));
+                            pads.Add((note, 0, 0, 0));
                         }
                     }
                 }
