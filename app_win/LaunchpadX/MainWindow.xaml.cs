@@ -56,7 +56,7 @@ namespace LaunchpadX
         private readonly object _lightshowLock = new();
 
         // ── YouTube streaming ─────────────────────────────────────────────────
-        private readonly Dictionary<int, (NAudio.Wave.WaveOutEvent player, NAudio.Wave.MediaFoundationReader reader)> _youtubePlayers = new();
+        private readonly Dictionary<int, (NAudio.Wave.WaveOutEvent player, NAudio.Wave.MediaFoundationReader reader, string tempFile)> _youtubePlayers = new();
         private readonly object _youtubeLock = new();
 
         // ── Drag-and-drop ─────────────────────────────────────────────────────
@@ -489,16 +489,17 @@ namespace LaunchpadX
 
         private void StopAllYoutubePlayers()
         {
-            List<(int note, NAudio.Wave.WaveOutEvent player, NAudio.Wave.MediaFoundationReader reader)> toStop;
+            List<(NAudio.Wave.WaveOutEvent player, NAudio.Wave.MediaFoundationReader reader, string tempFile)> toStop;
             lock (_youtubeLock)
             {
-                toStop = new(_youtubePlayers.Select(kv => (kv.Key, kv.Value.player, kv.Value.reader)));
+                toStop = new(_youtubePlayers.Values);
                 _youtubePlayers.Clear();
             }
-            foreach (var (_, player, reader) in toStop)
+            foreach (var (player, reader, tempFile) in toStop)
             {
                 try { player.Stop(); player.Dispose(); } catch { }
                 try { reader.Dispose(); } catch { }
+                try { File.Delete(tempFile); } catch { }
             }
         }
 
@@ -713,6 +714,7 @@ namespace LaunchpadX
                                     existing.player.Stop();
                                     existing.player.Dispose();
                                     existing.reader.Dispose();
+                                    try { File.Delete(existing.tempFile); } catch { }
                                     _youtubePlayers.Remove(ytNote);
                                     StopHardwarePulse(ytNote);
                                     Dispatcher.Invoke(() =>
@@ -740,29 +742,30 @@ namespace LaunchpadX
 
                             try
                             {
-                                Dispatcher.Invoke(() => AppendLog("[YouTube] Fetching stream URL…"));
-                                var audioUrl = await Services.YoutubeService.GetAudioUrlAsync(ytDlpPath, ytUrl);
-                                if (string.IsNullOrEmpty(audioUrl))
+                                Dispatcher.Invoke(() => AppendLog("[YouTube] Downloading audio…"));
+                                var tempFile = await Services.YoutubeService.DownloadToTempAsync(ytDlpPath, ytUrl);
+                                if (tempFile == null)
                                 {
-                                    Dispatcher.Invoke(() => AppendLog("[YouTube] Failed to get stream URL — check the URL or update yt-dlp."));
+                                    Dispatcher.Invoke(() => AppendLog("[YouTube] Download failed — check the URL or update yt-dlp."));
                                     StopHardwarePulse(ytNote);
                                     Dispatcher.Invoke(() => SetPadPressed(ytNote, false));
                                     return;
                                 }
 
-                                var reader = new NAudio.Wave.MediaFoundationReader(audioUrl);
+                                var reader = new NAudio.Wave.MediaFoundationReader(tempFile);
                                 var player = new NAudio.Wave.WaveOutEvent { DeviceNumber = _playback.DeviceNumber };
                                 player.Volume = Math.Clamp(ytVol, 0f, 1f);
                                 player.Init(reader);
 
                                 lock (_youtubeLock)
-                                    _youtubePlayers[ytNote] = (player, reader);
+                                    _youtubePlayers[ytNote] = (player, reader, tempFile);
 
                                 player.PlaybackStopped += (_, _) =>
                                 {
                                     lock (_youtubeLock) _youtubePlayers.Remove(ytNote);
                                     try { reader.Dispose(); } catch { }
                                     try { player.Dispose(); } catch { }
+                                    try { File.Delete(tempFile); } catch { }
                                     StopHardwarePulse(ytNote);
                                     Dispatcher.Invoke(() =>
                                     {

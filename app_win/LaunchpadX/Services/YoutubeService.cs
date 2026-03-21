@@ -31,20 +31,22 @@ namespace LaunchpadX.Services
         }
 
         /// <summary>
-        /// Runs yt-dlp to extract a direct audio stream URL from a YouTube/YT Music URL.
-        /// Prefers M4A (AAC) for best NAudio compatibility.
-        /// Returns null if extraction fails.
+        /// Downloads the best M4A/AAC audio to a temp file and returns its path.
+        /// Format 140 (M4A 128k) is always available on YouTube/YT Music and plays
+        /// reliably with NAudio MediaFoundationReader from disk.
+        /// Returns null if yt-dlp fails.
         /// </summary>
-        public static async Task<string?> GetAudioUrlAsync(
+        public static async Task<string?> DownloadToTempAsync(
             string ytDlpPath, string youtubeUrl, CancellationToken ct = default)
         {
-            // Format priority: M4A/AAC variants first (MediaFoundationReader compatible on Windows),
-            // then fall back to anything available.
-            // Format IDs: 140=M4A 128k, 141=M4A 256k, 250/251=WebM Opus (not natively supported).
-            const string fmt = "140/141/bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio/best";
-            var psi = new ProcessStartInfo(
-                ytDlpPath,
-                $"--get-url --format \"{fmt}\" --no-playlist \"{youtubeUrl}\"")
+            var tempFile = Path.Combine(Path.GetTempPath(), $"launchpadx_{Guid.NewGuid():N}.m4a");
+
+            // Format 140 = YouTube M4A/AAC 128kbps — no ffmpeg needed, always available
+            var args = $"--format \"140/bestaudio[ext=m4a]/bestaudio/best\" " +
+                       $"--no-playlist --no-part " +
+                       $"-o \"{tempFile}\" \"{youtubeUrl}\"";
+
+            var psi = new ProcessStartInfo(ytDlpPath, args)
             {
                 UseShellExecute        = false,
                 RedirectStandardOutput = true,
@@ -53,16 +55,13 @@ namespace LaunchpadX.Services
             };
 
             using var proc = Process.Start(psi)!;
-            string output = await proc.StandardOutput.ReadToEndAsync(ct);
             await proc.WaitForExitAsync(ct);
 
-            // yt-dlp may output multiple lines (DASH streams) — take the first HTTP URL
-            foreach (var line in output.Split('\n'))
-            {
-                var trimmed = line.Trim();
-                if (trimmed.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                    return trimmed;
-            }
+            if (proc.ExitCode == 0 && File.Exists(tempFile))
+                return tempFile;
+
+            // Clean up on failure
+            try { if (File.Exists(tempFile)) File.Delete(tempFile); } catch { }
             return null;
         }
     }
