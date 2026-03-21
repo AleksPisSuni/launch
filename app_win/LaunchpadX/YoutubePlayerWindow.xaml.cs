@@ -48,6 +48,7 @@ namespace LaunchpadX
                 Player = player,
                 Reader = reader
             };
+            _isSeeking = false; // seek completed — allow timer to resume from new reader position
             RefreshCombo();
             SelectEntry(note);
             if (!IsVisible) Show();
@@ -131,7 +132,8 @@ namespace LaunchpadX
             if (_isSeeking)
             {
                 Seek(SldSeek.Value);
-                _isSeeking = false;
+                // Keep _isSeeking = true until AddOrUpdatePlayer confirms new reader is ready.
+                // This prevents the 400ms timer from snapping the slider back to the old position.
             }
         }
 
