@@ -240,7 +240,8 @@
                 <ComboBoxItem Content="Lightshow"       Tag="lightshow"/>
                 <ComboBoxItem Content="MIDI Out"      Tag="midi"/>
                 <ComboBoxItem Content="Macro"         Tag="macro"/>
-                <ComboBoxItem Content="Volume Control" Tag="volume"/>
+                <ComboBoxItem Content="Volume Control"       Tag="volume"/>
+                <ComboBoxItem Content="YouTube / YT Music"  Tag="youtube"/>
             </ComboBox>
         </StackPanel>
 
@@ -384,6 +385,17 @@
                 </Grid>
                 <TextBlock Text='Type "master" for system volume, or pick a running app from the list.'
                            Foreground="#6B7280" FontSize="10" TextWrapping="Wrap" Margin="0,5,0,0"/>
+            </StackPanel>
+
+            <!-- YouTube / YT Music panel -->
+            <StackPanel x:Name="PanelYoutube" Visibility="Collapsed">
+                <TextBlock Text="Stream audio from a YouTube or YouTube Music URL when this pad is pressed. Press again to stop."
+                           TextWrapping="Wrap" Foreground="#9CA3AF" FontSize="12" Margin="0,0,0,10"/>
+                <TextBlock Text="YouTube / YT Music URL"/>
+                <TextBox x:Name="TxtYoutubeUrl" Margin="0,3,0,8"/>
+                <TextBlock Foreground="#6B7280" FontSize="10" TextWrapping="Wrap">
+                    Requires yt-dlp.exe placed next to LaunchpadX.exe.&#x0a;Download from: github.com/yt-dlp/yt-dlp/releases
+                </TextBlock>
             </StackPanel>
 
         </Grid>

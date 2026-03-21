@@ -89,6 +89,9 @@ namespace LaunchpadX
             TxtVolumeStep.Text = m.VolumeStep.ToString();
             PopulateAudioApps();
             CmbVolumeTarget.Text = m.VolumeTarget;
+
+            // YouTube
+            TxtYoutubeUrl.Text = m.YoutubeUrl;
         }
 
         private void SelectType(string type)
@@ -103,6 +106,7 @@ namespace LaunchpadX
                 "midi"      => 6,
                 "macro"     => 7,
                 "volume"    => 8,
+                "youtube"   => 9,
                 _           => 0,
             };
             ShowPanel(type);
@@ -119,6 +123,7 @@ namespace LaunchpadX
             PanelMidi.Visibility      = type == "midi"      ? Visibility.Visible : Visibility.Collapsed;
             PanelMacro.Visibility     = type == "macro"     ? Visibility.Visible : Visibility.Collapsed;
             PanelVolume.Visibility    = type == "volume"    ? Visibility.Visible : Visibility.Collapsed;
+            PanelYoutube.Visibility   = type == "youtube"   ? Visibility.Visible : Visibility.Collapsed;
             if (type == "volume" && CmbVolumeTarget.Items.Count == 0) PopulateAudioApps();
         }
 
@@ -327,6 +332,7 @@ namespace LaunchpadX
                 VolumeUp     = (CmbVolumeDir.SelectedItem as ComboBoxItem)?.Tag?.ToString() != "down",
                 VolumeStep   = int.TryParse(TxtVolumeStep.Text, out int vs) ? System.Math.Clamp(vs, 1, 100) : 5,
                 VolumeTarget = string.IsNullOrWhiteSpace(CmbVolumeTarget.Text) ? "master" : CmbVolumeTarget.Text.Trim(),
+                YoutubeUrl   = TxtYoutubeUrl.Text.Trim(),
             };
             DialogResult = true;
         }

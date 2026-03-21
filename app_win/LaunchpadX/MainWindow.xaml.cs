@@ -55,6 +55,10 @@ namespace LaunchpadX
         private readonly Dictionary<int, CancellationTokenSource> _lightshowCts = new();
         private readonly object _lightshowLock = new();
 
+        // ── YouTube streaming ─────────────────────────────────────────────────
+        private readonly Dictionary<int, (NAudio.Wave.WaveOutEvent player, NAudio.Wave.MediaFoundationReader reader)> _youtubePlayers = new();
+        private readonly object _youtubeLock = new();
+
         // ── Drag-and-drop ─────────────────────────────────────────────────────
         private Point? _dragStart;
         private int? _dragSourceNote;
@@ -483,6 +487,21 @@ namespace LaunchpadX
             foreach (var note in keys) StopHardwarePulse(note);
         }
 
+        private void StopAllYoutubePlayers()
+        {
+            List<(int note, NAudio.Wave.WaveOutEvent player, NAudio.Wave.MediaFoundationReader reader)> toStop;
+            lock (_youtubeLock)
+            {
+                toStop = new(_youtubePlayers.Select(kv => (kv.Key, kv.Value.player, kv.Value.reader)));
+                _youtubePlayers.Clear();
+            }
+            foreach (var (_, player, reader) in toStop)
+            {
+                try { player.Stop(); player.Dispose(); } catch { }
+                try { reader.Dispose(); } catch { }
+            }
+        }
+
         private void StopAllLightshows()
         {
             List<CancellationTokenSource> toCancel;
@@ -610,6 +629,7 @@ namespace LaunchpadX
                         var activeNotes = new List<int>();
                         lock (_pulseLock) { activeNotes.AddRange(_pulseCts.Keys); }
                         _playback.StopAll();
+                        StopAllYoutubePlayers();
                         StopAllLightshows();
                         Dispatcher.Invoke(() =>
                         {
@@ -673,6 +693,91 @@ namespace LaunchpadX
                                     if (ActiveMappings.TryGetValue(macroNote, out var m2))
                                         ApplyPadLed(macroNote, m2.Color);
                                 });
+                            }
+                        });
+                        return;
+
+                    case "youtube":
+                        if (string.IsNullOrWhiteSpace(m.YoutubeUrl)) break;
+                        var ytNote    = note;
+                        var ytUrl     = m.YoutubeUrl;
+                        var ytMapping = m;
+                        _ = Task.Run(async () =>
+                        {
+                            // Re-press = stop if already playing
+                            lock (_youtubeLock)
+                            {
+                                if (_youtubePlayers.TryGetValue(ytNote, out var existing))
+                                {
+                                    existing.player.Stop();
+                                    existing.player.Dispose();
+                                    existing.reader.Dispose();
+                                    _youtubePlayers.Remove(ytNote);
+                                    StopHardwarePulse(ytNote);
+                                    Dispatcher.Invoke(() =>
+                                    {
+                                        SetPadPressed(ytNote, false);
+                                        if (ActiveMappings.TryGetValue(ytNote, out var nm))
+                                            ApplyPadLed(ytNote, nm.Color);
+                                    });
+                                    return;
+                                }
+                            }
+
+                            var ytDlpPath = Services.YoutubeService.FindYtDlp();
+                            if (ytDlpPath == null)
+                            {
+                                Dispatcher.Invoke(() => MessageBox.Show(
+                                    "yt-dlp.exe not found.\n\n" +
+                                    "Place yt-dlp.exe in the same folder as LaunchpadX.exe\n" +
+                                    "Download from: github.com/yt-dlp/yt-dlp/releases",
+                                    "yt-dlp not found", MessageBoxButton.OK, MessageBoxImage.Warning));
+                                StopHardwarePulse(ytNote);
+                                Dispatcher.Invoke(() => { SetPadPressed(ytNote, false); });
+                                return;
+                            }
+
+                            try
+                            {
+                                AppendLog($"[YouTube] Fetching stream URL…");
+                                var audioUrl = await Services.YoutubeService.GetAudioUrlAsync(ytDlpPath, ytUrl);
+                                if (string.IsNullOrEmpty(audioUrl))
+                                {
+                                    AppendLog("[YouTube] Failed to get stream URL.");
+                                    StopHardwarePulse(ytNote);
+                                    Dispatcher.Invoke(() => { SetPadPressed(ytNote, false); });
+                                    return;
+                                }
+
+                                var reader = new NAudio.Wave.MediaFoundationReader(audioUrl);
+                                var player = new NAudio.Wave.WaveOutEvent { DeviceNumber = _playback.DeviceNumber };
+                                player.Init(reader);
+
+                                lock (_youtubeLock)
+                                    _youtubePlayers[ytNote] = (player, reader);
+
+                                player.PlaybackStopped += (_, _) =>
+                                {
+                                    lock (_youtubeLock) _youtubePlayers.Remove(ytNote);
+                                    try { reader.Dispose(); } catch { }
+                                    try { player.Dispose(); } catch { }
+                                    StopHardwarePulse(ytNote);
+                                    Dispatcher.Invoke(() =>
+                                    {
+                                        if (!ytMapping.ToggleMode) SetPadPressed(ytNote, false);
+                                        if (ActiveMappings.TryGetValue(ytNote, out var nm))
+                                            ApplyPadLed(ytNote, nm.Color);
+                                    });
+                                };
+
+                                AppendLog($"[YouTube] Playing…");
+                                player.Play();
+                            }
+                            catch (Exception ex)
+                            {
+                                AppendLog($"[YouTube] Error: {ex.Message}");
+                                StopHardwarePulse(ytNote);
+                                Dispatcher.Invoke(() => { SetPadPressed(ytNote, false); });
                             }
                         });
                         return;
@@ -975,6 +1080,7 @@ namespace LaunchpadX
         {
             if (name == _activeProfile) return;
             _playback.StopAll();
+            StopAllYoutubePlayers();
             _toggledOn.Clear();
             StopAllHardwarePulses();
             StopAllLightshows();
@@ -1232,6 +1338,7 @@ namespace LaunchpadX
         {
             _reconnectTimer.Stop();
             StopAllHardwarePulses();
+            StopAllYoutubePlayers();
             StopAllLightshows();
             _playback.Dispose();
 

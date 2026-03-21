@@ -47,6 +47,9 @@ namespace LaunchpadX.Models
 
         // Macro
         public List<MacroAction> MacroActions { get; set; } = new();
+
+        // YouTube / YT Music streaming
+        public string YoutubeUrl { get; set; } = "";
     }
 
     // Legacy — used only for migration from mappings.json
