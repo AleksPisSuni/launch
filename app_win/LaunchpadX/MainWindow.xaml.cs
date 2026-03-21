@@ -701,6 +701,7 @@ namespace LaunchpadX
                         if (string.IsNullOrWhiteSpace(m.YoutubeUrl)) break;
                         var ytNote    = note;
                         var ytUrl     = m.YoutubeUrl;
+                        var ytVol     = m.YoutubeVolume;
                         var ytMapping = m;
                         _ = Task.Run(async () =>
                         {
@@ -733,24 +734,25 @@ namespace LaunchpadX
                                     "Download from: github.com/yt-dlp/yt-dlp/releases",
                                     "yt-dlp not found", MessageBoxButton.OK, MessageBoxImage.Warning));
                                 StopHardwarePulse(ytNote);
-                                Dispatcher.Invoke(() => { SetPadPressed(ytNote, false); });
+                                Dispatcher.Invoke(() => SetPadPressed(ytNote, false));
                                 return;
                             }
 
                             try
                             {
-                                AppendLog($"[YouTube] Fetching stream URL…");
+                                Dispatcher.Invoke(() => AppendLog("[YouTube] Fetching stream URL…"));
                                 var audioUrl = await Services.YoutubeService.GetAudioUrlAsync(ytDlpPath, ytUrl);
                                 if (string.IsNullOrEmpty(audioUrl))
                                 {
-                                    AppendLog("[YouTube] Failed to get stream URL.");
+                                    Dispatcher.Invoke(() => AppendLog("[YouTube] Failed to get stream URL — check the URL or update yt-dlp."));
                                     StopHardwarePulse(ytNote);
-                                    Dispatcher.Invoke(() => { SetPadPressed(ytNote, false); });
+                                    Dispatcher.Invoke(() => SetPadPressed(ytNote, false));
                                     return;
                                 }
 
                                 var reader = new NAudio.Wave.MediaFoundationReader(audioUrl);
                                 var player = new NAudio.Wave.WaveOutEvent { DeviceNumber = _playback.DeviceNumber };
+                                player.Volume = Math.Clamp(ytVol, 0f, 1f);
                                 player.Init(reader);
 
                                 lock (_youtubeLock)
@@ -770,14 +772,14 @@ namespace LaunchpadX
                                     });
                                 };
 
-                                AppendLog($"[YouTube] Playing…");
+                                Dispatcher.Invoke(() => AppendLog("[YouTube] Playing…"));
                                 player.Play();
                             }
                             catch (Exception ex)
                             {
-                                AppendLog($"[YouTube] Error: {ex.Message}");
+                                Dispatcher.Invoke(() => AppendLog($"[YouTube] Error: {ex.Message}"));
                                 StopHardwarePulse(ytNote);
-                                Dispatcher.Invoke(() => { SetPadPressed(ytNote, false); });
+                                Dispatcher.Invoke(() => SetPadPressed(ytNote, false));
                             }
                         });
                         return;

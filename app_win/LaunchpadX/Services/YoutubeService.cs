@@ -38,9 +38,13 @@ namespace LaunchpadX.Services
         public static async Task<string?> GetAudioUrlAsync(
             string ytDlpPath, string youtubeUrl, CancellationToken ct = default)
         {
+            // Format priority: M4A/AAC variants first (MediaFoundationReader compatible on Windows),
+            // then fall back to anything available.
+            // Format IDs: 140=M4A 128k, 141=M4A 256k, 250/251=WebM Opus (not natively supported).
+            const string fmt = "140/141/bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio/best";
             var psi = new ProcessStartInfo(
                 ytDlpPath,
-                $"--get-url --format \"bestaudio[ext=m4a]/bestaudio/best\" --no-playlist \"{youtubeUrl}\"")
+                $"--get-url --format \"{fmt}\" --no-playlist \"{youtubeUrl}\"")
             {
                 UseShellExecute        = false,
                 RedirectStandardOutput = true,

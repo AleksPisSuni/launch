@@ -91,7 +91,8 @@ namespace LaunchpadX
             CmbVolumeTarget.Text = m.VolumeTarget;
 
             // YouTube
-            TxtYoutubeUrl.Text = m.YoutubeUrl;
+            TxtYoutubeUrl.Text     = m.YoutubeUrl;
+            SldYoutubeVolume.Value = m.YoutubeVolume;
         }
 
         private void SelectType(string type)
@@ -332,7 +333,8 @@ namespace LaunchpadX
                 VolumeUp     = (CmbVolumeDir.SelectedItem as ComboBoxItem)?.Tag?.ToString() != "down",
                 VolumeStep   = int.TryParse(TxtVolumeStep.Text, out int vs) ? System.Math.Clamp(vs, 1, 100) : 5,
                 VolumeTarget = string.IsNullOrWhiteSpace(CmbVolumeTarget.Text) ? "master" : CmbVolumeTarget.Text.Trim(),
-                YoutubeUrl   = TxtYoutubeUrl.Text.Trim(),
+                YoutubeUrl    = TxtYoutubeUrl.Text.Trim(),
+                YoutubeVolume = (float)SldYoutubeVolume.Value,
             };
             DialogResult = true;
         }

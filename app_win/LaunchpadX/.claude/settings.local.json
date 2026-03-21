@@ -6,7 +6,9 @@
       "Bash(\"/c/Program Files \\(x86\\)/Inno Setup 6/ISCC.exe\" installer.iss \"/DMyAppVersion=1.0.3\")",
       "Bash(powershell.exe -Command \"& ''C:\\\\Program Files \\(x86\\)\\\\Inno Setup 6\\\\ISCC.exe'' installer.iss /DMyAppVersion=1.0.3; exit $LASTEXITCODE\")",
       "Bash(powershell.exe -Command \"& ''C:\\\\Program Files \\(x86\\)\\\\Inno Setup 6\\\\ISCC.exe'' installer.iss /DMyAppVersion=1.0.3\")",
-      "Bash(powershell.exe -Command \":*)"
+      "Bash(powershell.exe -Command \":*)",
+      "Bash(dotnet publish:*)",
+      "Bash(powershell.exe -Command \"& ''''C:\\\\Program Files \\(x86\\)\\\\Inno Setup 6\\\\ISCC.exe'''' installer.iss /DMyAppVersion=1.0.6\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\aleks\\Documents\\launch"
