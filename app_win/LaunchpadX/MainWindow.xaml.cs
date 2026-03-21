@@ -60,9 +60,12 @@ namespace LaunchpadX
         private readonly object _youtubeLock = new();
         private YoutubePlayerWindow? _ytWindow;
 
-        // ── YouTube progress bar (bottom row pads 11–18) ──────────────────────
+        // ── YouTube progress bar (top row 91–98) + equalizer (main 8×8 grid) ──
         private CancellationTokenSource? _progressBarCts;
         private readonly object _progressBarLock = new();
+        private readonly double[] _eqHeights = new double[8];
+        private readonly double[] _eqPhases  = { 0.0, 0.9, 1.8, 2.7, 3.6, 4.5, 5.4, 0.45 };
+        private readonly Random   _eqRand    = new();
 
         // ── Drag-and-drop ─────────────────────────────────────────────────────
         private Point? _dragStart;
@@ -626,11 +629,12 @@ namespace LaunchpadX
                     while (!token.IsCancellationRequested)
                     {
                         DrawProgressBar();
-                        await Task.Delay(250, token).ConfigureAwait(false);
+                        DrawEqualizer();
+                        await Task.Delay(100, token).ConfigureAwait(false);
                     }
                 }
                 catch (OperationCanceledException) { }
-                finally { ClearProgressBarLeds(); }
+                finally { ClearYoutubeVisuals(); }
             });
         }
 
@@ -650,7 +654,7 @@ namespace LaunchpadX
         {
             if (!_midi.IsConnected) return;
 
-            // Pick which track to visualise — follow the floating window's selection
+            // Follow the floating window's current track selection
             int targetNote = _ytWindow?.CurrentNote ?? -1;
 
             NAudio.Wave.MediaFoundationReader? reader = null;
@@ -669,40 +673,108 @@ namespace LaunchpadX
                 var pos   = reader.CurrentTime.TotalSeconds;
                 if (total <= 0) return;
 
-                // 8 pads, each = 12.5% of the song; partial brightness for the leading segment
+                // Top row pads 91–98: filled blue segments + dim partial leading segment
                 double filled = Math.Clamp(pos / total, 0, 1) * 8.0;
                 int    full   = (int)filled;
                 double frac   = filled - full;
 
                 for (int i = 0; i < 8; i++)
                 {
-                    int padNote = 11 + i;
+                    int padNote = 91 + i;
                     if (i < full)
-                        _midi.SetPadColor(padNote, 0, 140, 255);            // full blue
+                        _midi.SetPadColor(padNote, 0, 140, 255);
                     else if (i == full && frac > 0.04)
-                        _midi.SetPadColor(padNote, 0, (byte)(140 * frac), (byte)(255 * frac)); // dim partial
+                        _midi.SetPadColor(padNote, 0, (byte)(140 * frac), (byte)(255 * frac));
                     else
-                        _midi.SetPadColor(padNote, 0, 0, 0);                // off
+                        _midi.SetPadColor(padNote, 0, 0, 0);
                 }
             }
             catch { }
         }
 
-        private void ClearProgressBarLeds()
+        private void DrawEqualizer()
+        {
+            if (!_midi.IsConnected) return;
+            try
+            {
+                // Advance each column's phase independently and compute a smooth animated height
+                var pads = new List<(int, byte, byte, byte)>(64);
+                for (int col = 0; col < 8; col++)
+                {
+                    _eqPhases[col] += 0.18 + col * 0.03; // slightly different tempo per band
+                    double sine   = (Math.Sin(_eqPhases[col]) + 1.0) * 0.5;
+                    double target = Math.Clamp(sine + _eqRand.NextDouble() * 0.22 - 0.11, 0.05, 0.95);
+
+                    // Fast attack, slower decay
+                    _eqHeights[col] = target > _eqHeights[col]
+                        ? Math.Min(_eqHeights[col] + 0.35, target)
+                        : Math.Max(_eqHeights[col] - 0.10, target);
+
+                    for (int row = 0; row < 8; row++)
+                    {
+                        int padNote = 11 + col + row * 10; // bottom row = row 0, top = row 7
+                        if ((row + 0.5) / 8.0 <= _eqHeights[col])
+                        {
+                            // VU-meter colours: green → amber → red (bottom to top)
+                            byte r = row < 4 ? (byte)0   : row < 6 ? (byte)220 : (byte)210;
+                            byte g = row < 4 ? (byte)190 : row < 6 ? (byte)140 : (byte)0;
+                            byte b = (byte)0;
+                            pads.Add((padNote, r, g, b));
+                        }
+                        else
+                        {
+                            pads.Add((padNote, 0, 0, 0));
+                        }
+                    }
+                }
+                _midi.SetMultiplePadColors(pads);
+            }
+            catch { }
+        }
+
+        private void ClearYoutubeVisuals()
         {
             if (!_midi.IsConnected) return;
             try
             {
                 Dispatcher.Invoke(() =>
                 {
+                    var pads = new List<(int, byte, byte, byte)>(72);
+
+                    // Restore top row (progress bar)
                     for (int i = 0; i < 8; i++)
                     {
-                        int padNote = 11 + i;
-                        if (ActiveMappings.TryGetValue(padNote, out var m))
-                            ApplyPadLed(padNote, m.Color);
-                        else
-                            _midi.SetPadColor(padNote, 0, 0, 0);
+                        int note = 91 + i;
+                        if (ActiveMappings.TryGetValue(note, out var m))
+                        {
+                            try
+                            {
+                                var c = (Color)ColorConverter.ConvertFromString(m.Color);
+                                pads.Add((note, c.R, c.G, c.B));
+                            }
+                            catch { pads.Add((note, 0, 0, 0)); }
+                        }
+                        else pads.Add((note, 0, 0, 0));
                     }
+
+                    // Restore main 8×8 grid (equalizer)
+                    for (int col = 0; col < 8; col++)
+                    for (int row = 0; row < 8; row++)
+                    {
+                        int note = 11 + col + row * 10;
+                        if (ActiveMappings.TryGetValue(note, out var m))
+                        {
+                            try
+                            {
+                                var c = (Color)ColorConverter.ConvertFromString(m.Color);
+                                pads.Add((note, c.R, c.G, c.B));
+                            }
+                            catch { pads.Add((note, 0, 0, 0)); }
+                        }
+                        else pads.Add((note, 0, 0, 0));
+                    }
+
+                    _midi.SetMultiplePadColors(pads);
                 });
             }
             catch { }
