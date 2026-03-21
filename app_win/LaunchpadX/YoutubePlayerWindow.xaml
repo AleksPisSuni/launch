@@ -1,0 +1,146 @@
+<Window x:Class="LaunchpadX.YoutubePlayerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Now Playing" Width="460" Height="185"
+        Background="#111827" Foreground="#E5E7EB"
+        ResizeMode="NoResize" ShowInTaskbar="False"
+        WindowStyle="ToolWindow" Topmost="True"
+        Closing="Window_Closing">
+
+    <Window.Resources>
+
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="#E5E7EB"/>
+            <Setter Property="Background" Value="#1F2937"/>
+            <Setter Property="BorderBrush" Value="#374151"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#374151"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#2563EB"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="Slider">
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="IsMoveToPointEnabled" Value="True"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid Height="20" VerticalAlignment="Center">
+                            <Border Height="4" Background="#374151" CornerRadius="2"
+                                    VerticalAlignment="Center"/>
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Focusable="False" IsTabStop="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Background="#2563EB" CornerRadius="2,0,0,2"
+                                                        Height="4" VerticalAlignment="Center"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Focusable="False" IsTabStop="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Background="Transparent"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb IsTabStop="False">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Ellipse Width="14" Height="14" Fill="White"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </Window.Resources>
+
+    <Grid Margin="14,10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Track selector (hidden when only one track) -->
+        <ComboBox x:Name="CmbTracks" Grid.Row="0"
+                  Margin="0,0,0,6" Visibility="Collapsed"
+                  Background="#1F2937" Foreground="#E5E7EB"
+                  BorderBrush="#374151" Padding="6,4"
+                  SelectionChanged="CmbTracks_SelectionChanged">
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding Label}" Foreground="#E5E7EB" FontSize="11"/>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <!-- Track label -->
+        <TextBlock x:Name="TxtTrackLabel" Grid.Row="1"
+                   Foreground="#E5E7EB" FontSize="11"
+                   TextTrimming="CharacterEllipsis"
+                   Margin="0,0,0,6" Text=""/>
+
+        <!-- Seek slider + time -->
+        <Grid Grid.Row="2" Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Slider x:Name="SldSeek" Grid.Column="0"
+                    Minimum="0" Maximum="1"
+                    PreviewMouseLeftButtonDown="SldSeek_MouseDown"
+                    PreviewMouseLeftButtonUp="SldSeek_MouseUp"/>
+            <TextBlock x:Name="TxtTime" Grid.Column="1"
+                       Text="0:00 / 0:00"
+                       Foreground="#9CA3AF" FontSize="11"
+                       VerticalAlignment="Center" Margin="10,0,0,0"
+                       Width="90"/>
+        </Grid>
+
+        <!-- Transport buttons -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal"
+                    HorizontalAlignment="Center" Margin="0,4,0,0">
+            <Button Content="-30s"  Click="BtnBack30_Click" Margin="2,0"/>
+            <Button Content="-10s"  Click="BtnBack10_Click" Margin="2,0"/>
+            <Button x:Name="BtnStop" Content="■ Stop" Click="BtnStop_Click"
+                    Margin="6,0" Background="#7F1D1D" BorderBrush="#991B1B"/>
+            <Button Content="+10s"  Click="BtnFwd10_Click" Margin="2,0"/>
+            <Button Content="+30s"  Click="BtnFwd30_Click" Margin="2,0"/>
+        </StackPanel>
+
+    </Grid>
+</Window>

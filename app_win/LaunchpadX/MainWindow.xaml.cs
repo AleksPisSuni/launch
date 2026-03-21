@@ -56,8 +56,9 @@ namespace LaunchpadX
         private readonly object _lightshowLock = new();
 
         // ── YouTube streaming ─────────────────────────────────────────────────
-        private readonly Dictionary<int, (NAudio.Wave.WaveOutEvent player, NAudio.Wave.MediaFoundationReader reader, string tempFile)> _youtubePlayers = new();
+        private readonly Dictionary<int, (NAudio.Wave.WaveOutEvent player, NAudio.Wave.MediaFoundationReader reader, string label)> _youtubePlayers = new();
         private readonly object _youtubeLock = new();
+        private YoutubePlayerWindow? _ytWindow;
 
         // ── Drag-and-drop ─────────────────────────────────────────────────────
         private Point? _dragStart;
@@ -489,18 +490,18 @@ namespace LaunchpadX
 
         private void StopAllYoutubePlayers()
         {
-            List<(NAudio.Wave.WaveOutEvent player, NAudio.Wave.MediaFoundationReader reader, string tempFile)> toStop;
+            List<(NAudio.Wave.WaveOutEvent player, NAudio.Wave.MediaFoundationReader reader, string label)> toStop;
             lock (_youtubeLock)
             {
                 toStop = new(_youtubePlayers.Values);
                 _youtubePlayers.Clear();
             }
-            foreach (var (player, reader, tempFile) in toStop)
+            foreach (var (player, reader, _) in toStop)
             {
                 try { player.Stop(); player.Dispose(); } catch { }
                 try { reader.Dispose(); } catch { }
-                try { File.Delete(tempFile); } catch { }
             }
+            Dispatcher.Invoke(() => _ytWindow?.Hide());
         }
 
         private void StopAllLightshows()
@@ -703,6 +704,7 @@ namespace LaunchpadX
                         var ytNote    = note;
                         var ytUrl     = m.YoutubeUrl;
                         var ytVol     = m.YoutubeVolume;
+                        var ytLabel   = string.IsNullOrWhiteSpace(m.Label) ? ytUrl : m.Label;
                         var ytMapping = m;
                         _ = Task.Run(async () =>
                         {
@@ -714,11 +716,11 @@ namespace LaunchpadX
                                     existing.player.Stop();
                                     existing.player.Dispose();
                                     existing.reader.Dispose();
-                                    try { File.Delete(existing.tempFile); } catch { }
                                     _youtubePlayers.Remove(ytNote);
                                     StopHardwarePulse(ytNote);
                                     Dispatcher.Invoke(() =>
                                     {
+                                        _ytWindow?.RemovePlayer(ytNote);
                                         SetPadPressed(ytNote, false);
                                         if (ActiveMappings.TryGetValue(ytNote, out var nm))
                                             ApplyPadLed(ytNote, nm.Color);
@@ -742,9 +744,15 @@ namespace LaunchpadX
 
                             try
                             {
-                                Dispatcher.Invoke(() => AppendLog("[YouTube] Downloading audio…"));
-                                var tempFile = await Services.YoutubeService.DownloadToTempAsync(ytDlpPath, ytUrl);
-                                if (tempFile == null)
+                                // Check cache first
+                                var cachePath = Services.YoutubeService.GetCachePath(ytUrl);
+                                bool cached   = File.Exists(cachePath);
+                                Dispatcher.Invoke(() => AppendLog(cached
+                                    ? "[YouTube] Loading from cache…"
+                                    : "[YouTube] Downloading audio…"));
+
+                                var audioFile = await Services.YoutubeService.DownloadToCacheAsync(ytDlpPath, ytUrl);
+                                if (audioFile == null)
                                 {
                                     Dispatcher.Invoke(() => AppendLog("[YouTube] Download failed — check the URL or update yt-dlp."));
                                     StopHardwarePulse(ytNote);
@@ -752,30 +760,37 @@ namespace LaunchpadX
                                     return;
                                 }
 
-                                var reader = new NAudio.Wave.MediaFoundationReader(tempFile);
+                                var reader = new NAudio.Wave.MediaFoundationReader(audioFile);
                                 var player = new NAudio.Wave.WaveOutEvent { DeviceNumber = _playback.DeviceNumber };
                                 player.Volume = Math.Clamp(ytVol, 0f, 1f);
                                 player.Init(reader);
 
                                 lock (_youtubeLock)
-                                    _youtubePlayers[ytNote] = (player, reader, tempFile);
+                                    _youtubePlayers[ytNote] = (player, reader, ytLabel);
 
                                 player.PlaybackStopped += (_, _) =>
                                 {
                                     lock (_youtubeLock) _youtubePlayers.Remove(ytNote);
                                     try { reader.Dispose(); } catch { }
                                     try { player.Dispose(); } catch { }
-                                    try { File.Delete(tempFile); } catch { }
                                     StopHardwarePulse(ytNote);
                                     Dispatcher.Invoke(() =>
                                     {
+                                        _ytWindow?.RemovePlayer(ytNote);
                                         if (!ytMapping.ToggleMode) SetPadPressed(ytNote, false);
                                         if (ActiveMappings.TryGetValue(ytNote, out var nm))
                                             ApplyPadLed(ytNote, nm.Color);
                                     });
                                 };
 
-                                Dispatcher.Invoke(() => AppendLog("[YouTube] Playing…"));
+                                Dispatcher.Invoke(() =>
+                                {
+                                    AppendLog("[YouTube] Playing…");
+                                    if (_ytWindow == null)
+                                        _ytWindow = new YoutubePlayerWindow { Owner = this };
+                                    _ytWindow.AddOrUpdatePlayer(ytNote, ytLabel, player, reader);
+                                });
+
                                 player.Play();
                             }
                             catch (Exception ex)
