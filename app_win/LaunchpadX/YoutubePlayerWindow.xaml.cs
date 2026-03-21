@@ -24,6 +24,12 @@ namespace LaunchpadX
         private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(400) };
         private bool _isSeeking;
 
+        /// <summary>Called when the user seeks; args: (note, targetSeconds)</summary>
+        public Action<int, double>? OnSeek { get; set; }
+
+        /// <summary>Called when the user clicks Stop; arg: note</summary>
+        public Action<int>? OnStop { get; set; }
+
         public YoutubePlayerWindow()
         {
             InitializeComponent();
@@ -91,13 +97,7 @@ namespace LaunchpadX
         private void Seek(double seconds)
         {
             if (_current == null) return;
-            try
-            {
-                var total  = _current.Reader.TotalTime.TotalSeconds;
-                var target = TimeSpan.FromSeconds(Math.Clamp(seconds, 0, total > 0.1 ? total - 0.1 : 0));
-                _current.Reader.CurrentTime = target;
-            }
-            catch { }
+            OnSeek?.Invoke(_current.Note, seconds);
         }
 
         private static string Fmt(double s)
@@ -163,7 +163,7 @@ namespace LaunchpadX
         private void BtnStop_Click(object sender, RoutedEventArgs e)
         {
             if (_current == null) return;
-            try { _current.Player.Stop(); } catch { }
+            OnStop?.Invoke(_current.Note);
         }
 
         // ── Close = hide ───────────────────────────────────────────────────────
