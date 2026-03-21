@@ -51,7 +51,7 @@
 
         <!-- SV picker -->
         <Canvas x:Name="SvCanvas" Width="288" Height="180"
-                ClipToBounds="True" Cursor="Crosshair"
+                ClipToBounds="True" Cursor="Cross"
                 MouseLeftButtonDown="SvCanvas_MouseDown"
                 MouseLeftButtonUp="SvCanvas_MouseUp"
                 MouseMove="SvCanvas_MouseMove">
