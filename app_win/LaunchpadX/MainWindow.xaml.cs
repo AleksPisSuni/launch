@@ -56,7 +56,7 @@ namespace LaunchpadX
         private readonly object _lightshowLock = new();
 
         // ── YouTube streaming ─────────────────────────────────────────────────
-        private readonly Dictionary<int, (NAudio.Wave.WaveOutEvent player, NAudio.Wave.MediaFoundationReader reader, string label, string cacheFile)> _youtubePlayers = new();
+        private readonly Dictionary<int, (NAudio.Wave.WaveOutEvent player, NAudio.Wave.MediaFoundationReader reader, string label, string cacheFile, PadMapping mapping)> _youtubePlayers = new();
         private readonly object _youtubeLock = new();
         private YoutubePlayerWindow? _ytWindow;
 
@@ -490,13 +490,13 @@ namespace LaunchpadX
 
         private void StopAllYoutubePlayers()
         {
-            List<(NAudio.Wave.WaveOutEvent player, NAudio.Wave.MediaFoundationReader reader, string label, string cacheFile)> toStop;
+            List<(NAudio.Wave.WaveOutEvent player, NAudio.Wave.MediaFoundationReader reader, string label, string cacheFile, PadMapping mapping)> toStop;
             lock (_youtubeLock)
             {
                 toStop = new(_youtubePlayers.Values);
                 _youtubePlayers.Clear();
             }
-            foreach (var (player, reader, _, _) in toStop)
+            foreach (var (player, reader, _, _, _) in toStop)
             {
                 try { player.Stop(); player.Dispose(); } catch { }
                 try { reader.Dispose(); } catch { }
@@ -508,43 +508,73 @@ namespace LaunchpadX
         {
             _ = Task.Run(() =>
             {
-                NAudio.Wave.WaveOutEvent? player = null;
+                NAudio.Wave.WaveOutEvent? oldPlayer = null;
                 NAudio.Wave.MediaFoundationReader? oldReader = null;
                 string? cacheFile = null;
                 string label = "";
+                PadMapping? mapping = null;
+                float volume = 1f;
 
+                // Remove from dict FIRST so old PlaybackStopped sees no entry → skips cleanup
                 lock (_youtubeLock)
                 {
                     if (!_youtubePlayers.TryGetValue(note, out var entry)) return;
-                    player    = entry.player;
+                    oldPlayer = entry.player;
                     oldReader = entry.reader;
                     cacheFile = entry.cacheFile;
                     label     = entry.label;
+                    mapping   = entry.mapping;
+                    volume    = oldPlayer.Volume;
+                    _youtubePlayers.Remove(note);
                 }
+
+                // Stop and dispose old player outside the lock
+                try { oldPlayer!.Stop(); }  catch { }
+                try { oldReader!.Dispose(); } catch { }
+                try { oldPlayer!.Dispose(); } catch { }
 
                 try
                 {
-                    // Create new reader at target position before touching the player
                     var newReader = new NAudio.Wave.MediaFoundationReader(cacheFile);
                     var total     = newReader.TotalTime.TotalSeconds;
                     newReader.CurrentTime = TimeSpan.FromSeconds(
                         Math.Clamp(seconds, 0, total > 0.1 ? total - 0.1 : 0));
 
-                    // Update dict with new reader BEFORE stopping — PlaybackStopped will see
-                    // newReader in the dict (not oldReader) and skip full cleanup
-                    lock (_youtubeLock)
+                    // Brand-new WaveOutEvent — no shared state with the old one
+                    var newPlayer = new NAudio.Wave.WaveOutEvent { DeviceNumber = _playback.DeviceNumber };
+                    newPlayer.Volume = volume;
+                    newPlayer.Init(newReader);
+
+                    // Register handler BEFORE adding to dict and playing
+                    var seekNote    = note;
+                    var seekMapping = mapping!;
+                    var myPlayer    = newPlayer;
+                    newPlayer.PlaybackStopped += (_, _) =>
                     {
-                        _youtubePlayers[note] = (player, newReader, label, cacheFile);
-                    }
+                        bool isActive;
+                        lock (_youtubeLock)
+                        {
+                            isActive = _youtubePlayers.TryGetValue(seekNote, out var e) && e.player == myPlayer;
+                            if (isActive) _youtubePlayers.Remove(seekNote);
+                        }
+                        try { newReader.Dispose(); } catch { }
+                        try { myPlayer.Dispose(); }  catch { }
+                        if (!isActive) return;
+                        StopHardwarePulse(seekNote);
+                        Dispatcher.Invoke(() =>
+                        {
+                            _ytWindow?.RemovePlayer(seekNote);
+                            if (!seekMapping.ToggleMode) SetPadPressed(seekNote, false);
+                            if (ActiveMappings.TryGetValue(seekNote, out var nm))
+                                ApplyPadLed(seekNote, nm.Color);
+                        });
+                    };
 
-                    player.Stop();           // fires PlaybackStopped; handler sees newReader → skips cleanup
-                    oldReader.Dispose();
+                    lock (_youtubeLock)
+                        _youtubePlayers[note] = (newPlayer, newReader, label, cacheFile!, seekMapping);
 
-                    player.Init(newReader);
-                    player.Play();
-
-                    // Update window so its timer reads position from the new reader
-                    Dispatcher.Invoke(() => _ytWindow?.AddOrUpdatePlayer(note, label, player, newReader));
+                    newPlayer.Play();
+                    Dispatcher.Invoke(() => _ytWindow?.AddOrUpdatePlayer(note, label, newPlayer, newReader));
                 }
                 catch { }
             });
@@ -612,10 +642,15 @@ namespace LaunchpadX
                     if (m.MidiOutNoteOff)
                         _midiOutput.SendNoteOff(m.MidiOutChannel, m.MidiOutNote);
                 }
+                else if (m.Type == "youtube")
+                {
+                    StopYoutubePlayer(note); // PlaybackStopped will handle LED + UI cleanup
+                }
                 StopHardwarePulse(note);
                 SetPadPressed(note, false);
                 if (m.Type == "sound")     return; // PlaybackEnded restores LED
                 if (m.Type == "lightshow") return; // lightshow finally restores LEDs
+                if (m.Type == "youtube")   return; // PlaybackStopped restores LED
                 ApplyPadLed(note, m.Color);
                 return;
             }
@@ -772,25 +807,34 @@ namespace LaunchpadX
                         var ytMapping = m;
                         _ = Task.Run(async () =>
                         {
-                            // Re-press = stop if already playing
+                            // Re-press = stop if already playing.
+                            // Extract from dict inside the lock, stop/dispose OUTSIDE it
+                            // so PlaybackStopped doesn't deadlock waiting for the same lock.
+                            NAudio.Wave.WaveOutEvent? existingPlayer = null;
+                            NAudio.Wave.MediaFoundationReader? existingReader = null;
                             lock (_youtubeLock)
                             {
                                 if (_youtubePlayers.TryGetValue(ytNote, out var existing))
                                 {
-                                    existing.player.Stop();
-                                    existing.player.Dispose();
-                                    existing.reader.Dispose();
+                                    existingPlayer = existing.player;
+                                    existingReader = existing.reader;
                                     _youtubePlayers.Remove(ytNote);
-                                    StopHardwarePulse(ytNote);
-                                    Dispatcher.Invoke(() =>
-                                    {
-                                        _ytWindow?.RemovePlayer(ytNote);
-                                        SetPadPressed(ytNote, false);
-                                        if (ActiveMappings.TryGetValue(ytNote, out var nm))
-                                            ApplyPadLed(ytNote, nm.Color);
-                                    });
-                                    return;
                                 }
+                            }
+                            if (existingPlayer != null)
+                            {
+                                StopHardwarePulse(ytNote);
+                                try { existingPlayer.Stop(); }  catch { }
+                                try { existingPlayer.Dispose(); } catch { }
+                                try { existingReader!.Dispose(); } catch { }
+                                Dispatcher.Invoke(() =>
+                                {
+                                    _ytWindow?.RemovePlayer(ytNote);
+                                    SetPadPressed(ytNote, false);
+                                    if (ActiveMappings.TryGetValue(ytNote, out var nm))
+                                        ApplyPadLed(ytNote, nm.Color);
+                                });
+                                return;
                             }
 
                             var ytDlpPath = Services.YoutubeService.FindYtDlp();
@@ -829,25 +873,21 @@ namespace LaunchpadX
                                 player.Volume = Math.Clamp(ytVol, 0f, 1f);
                                 player.Init(reader);
 
-                                lock (_youtubeLock)
-                                    _youtubePlayers[ytNote] = (player, reader, ytLabel, audioFile);
-
-                                var myReader = reader; // capture for identity check
+                                // Use player-identity: each seek creates a NEW WaveOutEvent,
+                                // so this handler only fires for THIS specific player instance.
+                                var myPlayer = player;
                                 player.PlaybackStopped += (_, _) =>
                                 {
-                                    // If the dict entry for this note has a DIFFERENT reader,
-                                    // we were stopped by a seek — just dispose our (old) reader
-                                    // and leave the player running with the new reader.
                                     bool isActive;
                                     lock (_youtubeLock)
                                     {
                                         isActive = _youtubePlayers.TryGetValue(ytNote, out var e)
-                                                   && e.reader == myReader;
+                                                   && e.player == myPlayer;
                                         if (isActive) _youtubePlayers.Remove(ytNote);
                                     }
-                                    try { myReader.Dispose(); } catch { }
-                                    if (!isActive) return; // superseded by seek — player still alive
-                                    try { player.Dispose(); } catch { }
+                                    try { reader.Dispose(); }   catch { }
+                                    try { myPlayer.Dispose(); } catch { }
+                                    if (!isActive) return; // re-press already cleaned up
                                     StopHardwarePulse(ytNote);
                                     Dispatcher.Invoke(() =>
                                     {
@@ -857,6 +897,9 @@ namespace LaunchpadX
                                             ApplyPadLed(ytNote, nm.Color);
                                     });
                                 };
+
+                                lock (_youtubeLock)
+                                    _youtubePlayers[ytNote] = (player, reader, ytLabel, audioFile, ytMapping);
 
                                 Dispatcher.Invoke(() =>
                                 {
