@@ -60,6 +60,10 @@ namespace LaunchpadX
         private readonly object _youtubeLock = new();
         private YoutubePlayerWindow? _ytWindow;
 
+        // ── YouTube progress bar (bottom row pads 11–18) ──────────────────────
+        private CancellationTokenSource? _progressBarCts;
+        private readonly object _progressBarLock = new();
+
         // ── Drag-and-drop ─────────────────────────────────────────────────────
         private Point? _dragStart;
         private int? _dragSourceNote;
@@ -501,6 +505,7 @@ namespace LaunchpadX
                 try { player.Stop(); player.Dispose(); } catch { }
                 try { reader.Dispose(); } catch { }
             }
+            StopProgressBar();
             Dispatcher.Invoke(() => _ytWindow?.Hide());
         }
 
@@ -551,15 +556,17 @@ namespace LaunchpadX
                     var myPlayer    = newPlayer;
                     newPlayer.PlaybackStopped += (_, _) =>
                     {
-                        bool isActive;
+                        bool isActive, allGone;
                         lock (_youtubeLock)
                         {
                             isActive = _youtubePlayers.TryGetValue(seekNote, out var e) && e.player == myPlayer;
                             if (isActive) _youtubePlayers.Remove(seekNote);
+                            allGone = isActive && _youtubePlayers.Count == 0;
                         }
                         try { newReader.Dispose(); } catch { }
                         try { myPlayer.Dispose(); }  catch { }
                         if (!isActive) return;
+                        if (allGone) StopProgressBar();
                         StopHardwarePulse(seekNote);
                         Dispatcher.Invoke(() =>
                         {
@@ -574,6 +581,7 @@ namespace LaunchpadX
                         _youtubePlayers[note] = (newPlayer, newReader, label, cacheFile!, seekMapping);
 
                     newPlayer.Play();
+                    // Progress bar keeps running — it will automatically pick up the new reader
                     Dispatcher.Invoke(() => _ytWindow?.AddOrUpdatePlayer(note, label, newPlayer, newReader));
                 }
                 catch { }
@@ -596,6 +604,108 @@ namespace LaunchpadX
                 }
                 try { player.Stop(); } catch { }
             });
+        }
+
+        private void StartProgressBar()
+        {
+            CancellationTokenSource newCts = new();
+            CancellationTokenSource? oldCts;
+            lock (_progressBarLock)
+            {
+                oldCts = _progressBarCts;
+                _progressBarCts = newCts;
+            }
+            oldCts?.Cancel();
+            oldCts?.Dispose();
+
+            var token = newCts.Token;
+            Task.Run(async () =>
+            {
+                try
+                {
+                    while (!token.IsCancellationRequested)
+                    {
+                        DrawProgressBar();
+                        await Task.Delay(250, token).ConfigureAwait(false);
+                    }
+                }
+                catch (OperationCanceledException) { }
+                finally { ClearProgressBarLeds(); }
+            });
+        }
+
+        private void StopProgressBar()
+        {
+            CancellationTokenSource? cts;
+            lock (_progressBarLock)
+            {
+                cts = _progressBarCts;
+                _progressBarCts = null;
+            }
+            cts?.Cancel();
+            cts?.Dispose();
+        }
+
+        private void DrawProgressBar()
+        {
+            if (!_midi.IsConnected) return;
+
+            // Pick which track to visualise — follow the floating window's selection
+            int targetNote = _ytWindow?.CurrentNote ?? -1;
+
+            NAudio.Wave.MediaFoundationReader? reader = null;
+            lock (_youtubeLock)
+            {
+                if (targetNote != -1 && _youtubePlayers.TryGetValue(targetNote, out var e))
+                    reader = e.reader;
+                else if (_youtubePlayers.Count > 0)
+                    reader = _youtubePlayers.Values.First().reader;
+            }
+            if (reader == null) return;
+
+            try
+            {
+                var total = reader.TotalTime.TotalSeconds;
+                var pos   = reader.CurrentTime.TotalSeconds;
+                if (total <= 0) return;
+
+                // 8 pads, each = 12.5% of the song; partial brightness for the leading segment
+                double filled = Math.Clamp(pos / total, 0, 1) * 8.0;
+                int    full   = (int)filled;
+                double frac   = filled - full;
+
+                for (int i = 0; i < 8; i++)
+                {
+                    int padNote = 11 + i;
+                    if (i < full)
+                        _midi.SetPadColor(padNote, 0, 140, 255);            // full blue
+                    else if (i == full && frac > 0.04)
+                        _midi.SetPadColor(padNote, 0, (byte)(140 * frac), (byte)(255 * frac)); // dim partial
+                    else
+                        _midi.SetPadColor(padNote, 0, 0, 0);                // off
+                }
+            }
+            catch { }
+        }
+
+        private void ClearProgressBarLeds()
+        {
+            if (!_midi.IsConnected) return;
+            try
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    for (int i = 0; i < 8; i++)
+                    {
+                        int padNote = 11 + i;
+                        if (ActiveMappings.TryGetValue(padNote, out var m))
+                            ApplyPadLed(padNote, m.Color);
+                        else
+                            _midi.SetPadColor(padNote, 0, 0, 0);
+                    }
+                });
+            }
+            catch { }
         }
 
         private void StopAllLightshows()
@@ -878,16 +988,18 @@ namespace LaunchpadX
                                 var myPlayer = player;
                                 player.PlaybackStopped += (_, _) =>
                                 {
-                                    bool isActive;
+                                    bool isActive, allGone;
                                     lock (_youtubeLock)
                                     {
                                         isActive = _youtubePlayers.TryGetValue(ytNote, out var e)
                                                    && e.player == myPlayer;
                                         if (isActive) _youtubePlayers.Remove(ytNote);
+                                        allGone = isActive && _youtubePlayers.Count == 0;
                                     }
                                     try { reader.Dispose(); }   catch { }
                                     try { myPlayer.Dispose(); } catch { }
                                     if (!isActive) return; // re-press already cleaned up
+                                    if (allGone) StopProgressBar();
                                     StopHardwarePulse(ytNote);
                                     Dispatcher.Invoke(() =>
                                     {
@@ -914,6 +1026,7 @@ namespace LaunchpadX
                                 });
 
                                 player.Play();
+                                StartProgressBar();
                             }
                             catch (Exception ex)
                             {

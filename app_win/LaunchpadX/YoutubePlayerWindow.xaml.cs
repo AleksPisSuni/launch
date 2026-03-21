@@ -23,6 +23,11 @@ namespace LaunchpadX
         private YoutubePlayerEntry? _current;
         private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(400) };
         private bool _isSeeking;
+        private bool _updatingVolume;
+        private volatile int _currentNote = -1;
+
+        /// <summary>Currently displayed track note — readable from any thread.</summary>
+        public int CurrentNote => _currentNote;
 
         /// <summary>Called when the user seeks; args: (note, targetSeconds)</summary>
         public Action<int, double>? OnSeek { get; set; }
@@ -62,16 +67,19 @@ namespace LaunchpadX
             if (wasSelected)
             {
                 _current = _entries.Count > 0 ? _entries.Values.First() : null;
+                _currentNote = _current?.Note ?? -1;
                 if (_current != null)
                 {
-                    CmbTracks.SelectedItem  = _current;
-                    TxtTrackLabel.Text      = _current.Label;
+                    CmbTracks.SelectedItem = _current;
+                    TxtTrackLabel.Text     = _current.Label;
+                    SetVolumeSlider(_current.Player.Volume);
                 }
                 else
                 {
                     TxtTrackLabel.Text = "";
                     TxtTime.Text       = "0:00 / 0:00";
                     SldSeek.Value      = 0;
+                    SetVolumeSlider(1f);
                 }
             }
             if (_entries.Count == 0) Hide();
@@ -90,9 +98,19 @@ namespace LaunchpadX
         private void SelectEntry(int note)
         {
             if (!_entries.TryGetValue(note, out var e)) return;
-            _current            = e;
+            _current     = e;
+            _currentNote = note;
             CmbTracks.SelectedItem = e;
-            TxtTrackLabel.Text  = e.Label;
+            TxtTrackLabel.Text     = e.Label;
+            SetVolumeSlider(e.Player.Volume);
+        }
+
+        private void SetVolumeSlider(float volume)
+        {
+            _updatingVolume   = true;
+            SldVolume.Value   = Math.Clamp(volume, 0f, 1f);
+            TxtVolume.Text    = $"{(int)(volume * 100)}%";
+            _updatingVolume   = false;
         }
 
         private void Seek(double seconds)
@@ -137,14 +155,26 @@ namespace LaunchpadX
             }
         }
 
+        // ── Volume slider ──────────────────────────────────────────────────────
+
+        private void SldVolume_ValueChanged(object sender, System.Windows.RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_updatingVolume || _current == null) return;
+            float vol = (float)SldVolume.Value;
+            _current.Player.Volume = vol;
+            TxtVolume.Text = $"{(int)(vol * 100)}%";
+        }
+
         // ── Track selector ─────────────────────────────────────────────────────
 
         private void CmbTracks_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
             if (CmbTracks.SelectedItem is YoutubePlayerEntry entry)
             {
-                _current           = entry;
+                _current     = entry;
+                _currentNote = entry.Note;
                 TxtTrackLabel.Text = entry.Label;
+                SetVolumeSlider(entry.Player.Volume);
             }
         }
 

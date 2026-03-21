@@ -1,7 +1,7 @@
 <Window x:Class="LaunchpadX.YoutubePlayerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Now Playing" Width="460" Height="185"
+        Title="Now Playing" Width="460" Height="220"
         Background="#111827" Foreground="#E5E7EB"
         ResizeMode="NoResize" ShowInTaskbar="False"
         WindowStyle="ToolWindow" Topmost="True"
@@ -93,6 +93,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Track selector (hidden when only one track) -->
@@ -141,6 +142,24 @@
             <Button Content="+10s"  Click="BtnFwd10_Click" Margin="2,0"/>
             <Button Content="+30s"  Click="BtnFwd30_Click" Margin="2,0"/>
         </StackPanel>
+
+        <!-- Volume control -->
+        <Grid Grid.Row="4" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Vol" Grid.Column="0"
+                       Foreground="#9CA3AF" FontSize="11"
+                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <Slider x:Name="SldVolume" Grid.Column="1"
+                    Minimum="0" Maximum="1" Value="1"
+                    ValueChanged="SldVolume_ValueChanged"/>
+            <TextBlock x:Name="TxtVolume" Grid.Column="2"
+                       Text="100%" Foreground="#9CA3AF" FontSize="11"
+                       VerticalAlignment="Center" Margin="8,0,0,0" Width="36"/>
+        </Grid>
 
     </Grid>
 </Window>
